@@ -27,6 +27,9 @@ def create_app() -> FastAPI:
     configure_data_dir()
     from dartlab.server import app as dartlab_app
     from dartlab.server._ui_path import resolveUiBuildDir
+    from .codex_models import install_codex_model_bridge
+
+    install_codex_model_bridge()
 
     index = resolveUiBuildDir() / "index.html"
     if not index.is_file():
