@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Gems Research · 투자 매력도 검토</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script defer src="/static/app.js"></script>
+</head>
+<body>
+  <header class="topbar"><a class="brand" href="/"><span class="brand-mark">G</span>Gems<span>Research</span></a><span class="local"><i></i> 로컬 분석 워크스페이스</span></header>
+  <div class="shell">
+    <aside class="sidebar">
+      <span class="eyebrow">RESEARCH DESK</span>
+      <button class="nav active" data-view="evaluate">◈ &nbsp; 매력도 평가</button>
+      <button class="nav" data-view="report">▤ &nbsp; 검토 보고서</button>
+      <button class="nav" data-view="history">◷ &nbsp; 저장 기록</button>
+      <div class="sidebar-rule"></div><span class="eyebrow">평가 프레임워크</span>
+      <div id="group-nav"></div>
+      <div class="sidebar-bottom"><strong>근거를 남기는 분석</strong><p>사실·추정·가정을 구분하고<br>같은 규칙으로 비교합니다.</p><small id="version"></small></div>
+    </aside>
+    <main>
+      <div class="heading"><div><div class="eyebrow">INVESTMENT ATTRACTIVENESS</div><h1>투자 매력도 검토</h1><p>기업의 수치와 근거를 확인하고, 여섯 가지 관점으로 평가하세요.</p></div><div class="toolbar"><button id="reset" class="button secondary">새 분석</button><button id="demo" class="button secondary">가상 예시 살펴보기 ↗</button></div></div>
+      <div id="message" role="status" hidden></div>
+      <div id="demo-banner" class="demo-banner" hidden>가상 예시 모드 · 실제 기업·시세·투자 결론이 아닙니다.</div>
+      <section class="instrument panel" aria-label="분석 대상">
+        <label>종목코드·티커<input id="symbol" value="005930" maxlength="20" placeholder="005930 / AAPL"></label>
+        <label>시장<select id="market"><option value="KR">한국 · KR</option><option value="US">미국 · US</option></select></label>
+        <label>업종 프로필<select id="profile"><option value="general">일반 비금융업</option><option value="financial">금융업 · 대체 기준 필요</option><option value="reit">리츠 · 대체 기준 필요</option><option value="preprofit">적자 성장기업 · 대체 기준 필요</option></select></label>
+        <label>분석 기준일<input id="as-of" type="date"></label>
+        <div class="load-action"><button id="load" class="button dark">DartLab 불러오기</button><label class="checkbox"><input id="offline" type="checkbox"> 로컬 캐시만 사용</label></div>
+        <div id="instrument-meta">API 키 없이 시작할 수 있습니다. 데이터 조회 시 필요한 공개 파일을 캐시합니다.</div>
+      </section>
+      <div class="tabs"><button class="tab active" data-view="evaluate">평가 항목 <span>21</span></button><button class="tab" data-view="report">검토 보고서</button><button class="tab" data-view="history">저장 기록</button></div>
+      <div id="view-evaluate" class="view">
+        <div class="workspace"><div id="criteria"></div>
+          <aside class="summary panel">
+            <div class="eyebrow">ATTRACTIVENESS SCORE</div><div class="summary-title">종합 매력도 <span id="readiness" class="pill">미평가</span></div>
+            <div class="score"><span id="total">—</span><small>/ 100</small></div>
+            <div id="score-caption" class="muted">근거가 모이면 최종 점수를 표시합니다.</div>
+            <div class="coverage-title"><span>자료 충족률</span><strong id="coverage">0%</strong></div><div class="progress"><i id="coverage-bar"></i></div>
+            <div class="range"><span>가능한 점수 범위</span><strong id="range">0 ~ 100</strong></div>
+            <div class="range"><span>확보된 항목의 잠정 점수</span><strong id="provisional">—</strong></div>
+            <p id="basis" class="fine">자료 성격: 미입력</p>
+            <p class="fine">잠정 점수는 일부 자료만 환산한 값입니다. 자료가 적은 기업과 많은 기업을 직접 비교하지 마세요.</p>
+            <div id="group-scores"></div>
+            <button id="calculate" class="button primary full">매력도 계산하기 →</button>
+            <button id="save" class="button secondary full" disabled>분석 기록 저장</button>
+            <p class="fine">점수는 상승 확률이나 매수·매도 신호가 아닙니다. 근거의 정확성과 평가 기준의 적합성을 함께 검토하세요.</p>
+          </aside>
+        </div>
+        <section class="panel narrative"><div class="section-title"><span class="number">+</span><div><h2>투자 논리와 비교 근거</h2><p>보고서에 포함할 판단 근거를 작성하세요. 점수에서 목표주가를 자동 생성하지 않습니다.</p></div></div>
+          <div class="two-col"><label>핵심 투자 논리 · 줄마다 하나, 최대 3개<textarea id="thesis" rows="4" placeholder="어떤 데이터가 이 투자 논리를 뒷받침하나요?"></textarea></label><label>핵심 리스크 · 줄마다 하나, 최대 3개<textarea id="risks" rows="4" placeholder="어떤 상황에서 판단을 바꿔야 하나요?"></textarea></label></div>
+          <div class="two-col"><label>현재가 또는 최근 종가<input id="current-price" type="number" min="0" step="any"></label><label>가격 기준일<input id="price-date" type="date"></label><label>12개월 목표주가 · 선택<input id="target-price" type="number" min="0" step="any"></label><label>목표주가 계산 근거<input id="target-basis" placeholder="DCF·경쟁사 배수·가정·출처"></label></div>
+          <h3>경쟁사 비교 · 같은 기간과 통화 기준</h3><div id="peers"></div>
+        </section>
+      </div>
+      <section id="view-report" class="view panel report-view" hidden>
+        <div class="section-title"><div><h2>검토 보고서</h2><p>financial-services의 분석·검산 순서를 참고한 보고서입니다. AI가 자동으로 작성한 의견이 아닙니다.</p></div></div>
+        <div class="toolbar"><button id="export-md" class="button dark">보고서 다운로드</button><button id="export-json" class="button secondary">근거 JSON 내보내기</button><button id="copy-gems" class="button secondary">Gems 검토 요청 복사</button><label class="button secondary file-label">JSON 불러오기<input id="import-json" type="file" accept=".json,application/json" hidden></label></div>
+        <pre id="report-content">평가 화면에서 매력도를 계산하면 근거와 미평가 항목을 포함한 보고서를 확인할 수 있습니다.</pre>
+      </section>
+      <section id="view-history" class="view panel report-view" hidden><h2>저장한 분석</h2><p class="muted">입력 근거·기준 버전·결과를 함께 보존합니다. 다시 열어 비교할 수 있습니다.</p><div id="history-list"></div></section>
+      <footer>Gems Reference · 규칙 기반 매력도 평가 <span>공개 데이터는 지연되거나 수정될 수 있습니다.</span></footer>
+    </main>
+  </div>
+</body>
+</html>

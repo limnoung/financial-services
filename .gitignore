@@ -45,3 +45,10 @@ coverage/
 TASKS.md
 MEMORY.md
 .claude/worktrees/
+
+# Local research application
+.venv/
+.cache/
+research-app/data/
+research-app/reports/
+*.sqlite3
