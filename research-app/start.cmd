@@ -1,12 +1,8 @@
 @echo off
 setlocal
+chcp 65001 >nul
 cd /d "%~dp0"
-where py >nul 2>nul
-if errorlevel 1 (
-  python -X utf8 start.py %*
-) else (
-  py -3 -X utf8 start.py %*
-)
+"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "%~dp0start.ps1" %*
 set "GEMS_EXIT=%errorlevel%"
 if not "%GEMS_EXIT%"=="0" pause
 exit /b %GEMS_EXIT%

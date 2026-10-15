@@ -22,6 +22,27 @@ Python **3.12 이상**을 설치하고 ZIP을 압축 해제합니다. 전체 Git
 
 브라우저 자동 실행을 끄려면 `python -X utf8 start.py --no-browser`, 포트를 바꾸려면 `--port 9000`을 추가합니다. 설치 오류는 실행한 터미널에 표시됩니다. Python·Node·1TB 금융 데이터를 ZIP에 넣은 실행 파일 형태가 아니라 소스 배포입니다.
 
+## Windows에서 Python 경로 오류가 나는 경우
+
+`Unable to create process using '...Python3.13\python.exe ...start.py'`는 보통 Windows Python 실행기가 이미 삭제되거나 이동한 설치 경로를 가리킬 때 발생합니다. 앱 서버가 시작되기 전의 오류입니다.
+
+0.2.1의 `start.cmd`는 함께 포함된 `start.ps1`로 실제 실행 가능한 Python 3.12 이상을 찾습니다. PATH와 Python 설치 레지스트리, 명시적 버전 실행을 확인하며 잘못된 등록은 건너뜁니다. 시작 파일 일부만 교체하지 말고 ZIP을 새 폴더에 모두 압축 해제해 실행하세요.
+
+먼저 Python 탐색만 확인하려면 명령 프롬프트에서 다음을 실행합니다. 가상환경이나 패키지를 설치하지 않습니다.
+
+    start.cmd --diagnose-python
+
+정상 Python이 없다면 Python 3.12를 설치하고 다시 실행합니다.
+
+    winget install --id Python.Python.3.12 -e
+
+특정 설치를 사용하려면 PowerShell에서 실제 존재하는 경로를 지정할 수도 있습니다.
+
+    $env:GEMS_PYTHON = "C:\Users\사용자명\AppData\Local\Programs\Python\Python312\python.exe"
+    .\start.cmd
+
+기존 `.venv`가 삭제된 Python에 연결돼 있으면 그 폴더를 `.venv.broken-...`로 보존한 뒤 새 가상환경을 만듭니다. 기존 환경의 파일과 분석 기록은 삭제하지 않습니다. Windows 실행 검증은 `.github/workflows/research-app.yml`의 Windows 작업에서도 수행합니다.
+
 ## 한 화면에서 사용하는 순서
 
 1. DartLab 메인화면에서 종목을 검색하고 재무·공시·차트를 확인합니다.

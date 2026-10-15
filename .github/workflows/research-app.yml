@@ -1,0 +1,34 @@
+name: Research app
+
+on:
+  push:
+    paths:
+      - 'research-app/**'
+      - '.github/workflows/research-app.yml'
+  pull_request:
+    paths:
+      - 'research-app/**'
+      - '.github/workflows/research-app.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: research-app/pyproject.toml
+      - name: Install research app
+        run: python -m pip install -e "./research-app[data,test]"
+      - name: Test app and startup recovery
+        run: python -m pytest -q research-app/tests

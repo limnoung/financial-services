@@ -48,6 +48,7 @@ MEMORY.md
 
 # Local research application
 .venv/
+.venv.broken-*/
 .cache/
 research-app/data/
 research-app/reports/
