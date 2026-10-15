@@ -29,9 +29,13 @@ def test_native_ui_assets_and_api_namespaces_keep_upstream_contracts(tmp_path, m
         assert client.get("/_gems-extension/bridge.js").status_code == 200
         assert 'href="static/style.css"' in client.get("/gems/").text
         assert client.get("/gems/static/app.js").status_code == 200
+        assert client.get("/gems/static/forecast.js").status_code == 200
+        assert 'gems-forecast-launcher' in client.get("/_gems-extension/bridge.js").text
         assert len(client.get("/gems/api/rubric").json()["criteria"]) == 21
         demo = client.get("/gems/api/demo").json()
         assert client.post("/gems/api/analyze", json=demo).json()["result"]["coverage"] == 100
         assert client.post("/gems/api/review", json=demo).status_code == 200
+        outlook = client.post("/gems/api/forecast", json={"symbol": "DEMO", "demo": True}).json()
+        assert outlook["horizon"] == 20 and len(outlook["future"]) == 20
         assert client.get("/openapi.json").json()["info"]["title"] == "DartLab"
         assert client.get("/", headers={"host": "unexpected.example"}).status_code == 400

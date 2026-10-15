@@ -5,6 +5,7 @@
   <title>Gems Research · 투자 매력도 검토</title>
   <link rel="stylesheet" href="static/style.css">
   <script defer src="static/app.js"></script>
+  <script defer src="static/forecast.js"></script>
 </head>
 <body>
   <header class="topbar"><a class="brand" href="/"><span class="brand-mark">G</span>Gems<span>Research</span></a><span class="local"><i></i> 로컬 분석 워크스페이스</span></header>
@@ -12,6 +13,7 @@
     <aside class="sidebar">
       <span class="eyebrow">RESEARCH DESK</span>
       <button class="nav" data-view="review">▦ &nbsp; 재무 검토</button>
+      <button class="nav" data-view="forecast">⌁ &nbsp; 차트 전망</button>
       <button class="nav active" data-view="evaluate">◈ &nbsp; 매력도 평가</button>
       <button class="nav" data-view="report">▤ &nbsp; 검토 보고서</button>
       <button class="nav" data-view="history">◷ &nbsp; 저장 기록</button>
@@ -31,7 +33,30 @@
         <div class="load-action"><button id="load" class="button dark">DartLab 불러오기</button><label class="checkbox"><input id="offline" type="checkbox"> 로컬 캐시만 사용</label></div>
         <div id="instrument-meta">API 키 없이 시작할 수 있습니다. 데이터 조회 시 필요한 공개 파일을 캐시합니다.</div>
       </section>
-      <div class="tabs"><button class="tab" data-view="review">재무 검토</button><button class="tab active" data-view="evaluate">평가 항목 <span>21</span></button><button class="tab" data-view="report">검토 보고서</button><button class="tab" data-view="history">저장 기록</button></div>
+      <div class="tabs"><button class="tab" data-view="forecast">차트 전망</button><button class="tab" data-view="review">재무 검토</button><button class="tab active" data-view="evaluate">평가 항목 <span>21</span></button><button class="tab" data-view="report">검토 보고서</button><button class="tab" data-view="history">저장 기록</button></div>
+      <section id="view-forecast" class="view panel report-view" hidden>
+        <div class="forecast-heading"><div><div class="eyebrow">PRICE OUTLOOK</div><h2>차트 전망</h2><p class="muted">과거 가격에 예상 경로와 오차 범위를 겹쳐 봅니다. 매력도 점수·목표주가와 별도로 계산합니다.</p></div><span class="pill">DartLab 통계 모델</span></div>
+        <div class="forecast-controls">
+          <label>전망 기간<select id="forecast-horizon"><option value="5">5거래일</option><option value="20" selected>20거래일 · 약 한 달</option><option value="60">60거래일</option></select></label>
+          <label>적합 기간<select id="forecast-lookback"><option value="63">최근 63개 수익률</option><option value="126" selected>최근 126개 수익률</option><option value="252">최근 252개 수익률</option></select></label>
+          <label>예측 방식<select id="forecast-method"><option value="ar1">AR(1) · 로그수익률</option><option value="drift">평균 로그수익률</option></select></label>
+          <label>차트에 표시할 과거<select id="forecast-display"><option value="60">최근 60개 종가</option><option value="126">최근 126개 종가</option><option value="252">최근 252개 종가</option></select></label>
+          <button id="forecast-run" class="button primary">현재 종목 전망 보기</button>
+          <button id="forecast-demo" class="button secondary">가상 차트 연습</button>
+        </div>
+        <p id="forecast-status" role="status" class="muted">위 종목코드·시장·분석 기준일을 사용합니다. 재무 자료 없이 가격 파일만 조회할 수 있습니다.</p>
+        <div id="forecast-result" hidden>
+          <div id="forecast-meta" class="forecast-meta"></div>
+          <div id="forecast-demo-notice" class="demo-banner" hidden>가상 차트 · 실제 기업·시세·투자 결과가 아닙니다.</div>
+          <div class="forecast-legend"><span class="actual">과거 종가</span><span class="estimate">예상 경로</span><span class="band">80% 참고 범위 · 포함 보장 없음</span><span class="baseline">기준종가 유지</span></div>
+          <div id="forecast-chart" class="forecast-chart"></div>
+          <div id="forecast-tooltip" class="forecast-tooltip" aria-live="polite">차트 위를 움직이면 가격과 범위를 확인할 수 있습니다.</div>
+          <div id="forecast-summary" class="forecast-summary"></div>
+          <div class="forecast-validation"><h3>과거 구간에서의 비교</h3><p id="forecast-verdict"></p><div id="forecast-metrics" class="forecast-summary"></div><details><summary>검증 구간별 예측과 실제 가격</summary><div class="forecast-table-wrap"><table id="forecast-validation-table"></table></div></details></div>
+          <details class="forecast-notes"><summary>자료 출처·방법·한계</summary><div id="forecast-source"></div><ul id="forecast-warnings"></ul></details>
+        </div>
+        <button id="forecast-export" class="button secondary" disabled>차트 전망 JSON 저장</button>
+      </section>
       <section id="view-review" class="view panel report-view" hidden>
         <h2>financial-services 재무 검토</h2>
         <p class="muted">DartLab에서 확인한 자료와 현재 입력을 검토합니다. 아래 점검은 자료의 진위나 Excel 수식을 감사한 결과가 아닙니다.</p>

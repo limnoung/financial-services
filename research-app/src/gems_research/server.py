@@ -9,7 +9,8 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from . import storage
 from .data import demo_input, load_company
-from .models import AnalysisInput, LoadInput
+from .models import AnalysisInput, LoadInput, ForecastInput
+from .forecast import forecast_prices
 from .reports import gemini_prompt, markdown_report
 from .rubric import catalog
 from .review import financial_review, workflow_text
@@ -81,3 +82,11 @@ def workflow(key: str):
         return workflow_text(key)
     except KeyError as exc:
         raise HTTPException(404, "알 수 없는 검토 절차입니다.") from exc
+
+
+@app.post("/api/forecast")
+def forecast(request: ForecastInput):
+    try:
+        return forecast_prices(request)
+    except (OSError, RuntimeError, ValueError, KeyError, ImportError) as exc:
+        raise HTTPException(422, detail="차트 전망을 계산하지 못했습니다. " + str(exc)[:500]) from exc

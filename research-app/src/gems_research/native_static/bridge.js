@@ -15,12 +15,13 @@
     return route ? route[2] : "";
   }
   var launcher=node("button","Gems · 재무 검토");launcher.id="gems-launcher";launcher.type="button";launcher.setAttribute("aria-haspopup","dialog");
+  var forecastLauncher=node("button","차트 전망 ↗");forecastLauncher.id="gems-forecast-launcher";forecastLauncher.type="button";forecastLauncher.setAttribute("aria-haspopup","dialog");
   var panel=node("dialog");panel.id="gems-drawer";panel.setAttribute("aria-labelledby","gems-drawer-title");
   var head=node("header"),heading=node("div"),title=node("strong","Gems Research");title.id="gems-drawer-title";
   var caption=node("small");heading.append(title,caption);
   var close=node("button","닫기 ✕");close.type="button";close.onclick=function(){panel.close();};head.append(heading,close);
   var bar=node("nav"),buttons={},view="evaluate";
-  [["evaluate","매력도 평가"],["review","재무 검토"],["report","보고서"],["history","저장 기록"]].forEach(function(item){
+  [["forecast","차트 전망"],["evaluate","매력도 평가"],["review","재무 검토"],["report","보고서"],["history","저장 기록"]].forEach(function(item){
     var b=node("button",item[1]);b.type="button";b.dataset.view=item[0];buttons[item[0]]=b;b.onclick=function(){view=item[0];sendView();};bar.appendChild(b);
   });
   var use=node("button","현재 종목 가져오기");use.type="button";use.className="gems-context";use.onclick=function(){post({type:"gems-select-company",symbol:context()});};bar.appendChild(use);
@@ -31,17 +32,20 @@
   function sendView(){updateTabs();post({type:"gems-view",view:view});}
   var lastContext="";
   function updateContext(){var code=context();caption.textContent=code?"DartLab 조회 종목: "+code:"DartLab에서 종목을 선택하거나 패널에 직접 입력하세요.";use.disabled=!code;ai.href="/chat?code="+encodeURIComponent(code);if(code!==lastContext){lastContext=code;post({type:"gems-context",symbol:code});}}
-  launcher.onclick=function(){
-    if(!frame.getAttribute("src"))frame.src="/gems/?embedded=1&symbol="+encodeURIComponent(context());
+  function openPanel(){
+    if(!frame.getAttribute("src"))frame.src="/gems/?embedded=1&symbol="+encodeURIComponent(context())+"&view="+encodeURIComponent(view);
     updateContext();panel.showModal();sendView();
-  };
-  panel.addEventListener("close",function(){launcher.focus();});
+  }
+  var returnFocus=launcher;
+  launcher.onclick=function(){returnFocus=launcher;openPanel();};
+  forecastLauncher.onclick=function(){view="forecast";returnFocus=forecastLauncher;openPanel();};
+  panel.addEventListener("close",function(){returnFocus.focus();});
   window.addEventListener("message",function(event){
     if(event.origin!==location.origin || event.source!==frame.contentWindow)return;
     if(event.data && event.data.type==="gems-view-changed" && Object.hasOwn(buttons,event.data.view)){view=event.data.view;updateTabs();}
     if(event.data && event.data.type==="gems-ready"){sendView();updateContext();}
   });
-  panel.append(head,bar,frame);document.body.append(launcher,panel);updateContext();
+  panel.append(head,bar,frame);document.body.append(launcher,forecastLauncher,panel);updateContext();
   // DartLab's terminal updates this documented key when its selection changes.
   setInterval(function(){if(panel.open)updateContext();},750);
 })();

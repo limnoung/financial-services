@@ -12,11 +12,13 @@ async function api(url, data) {
   return body;
 }
 function showView(name) {
+  window.scrollTo(0,0);
   document.querySelectorAll(".view").forEach(function(n){ n.hidden = n.id !== "view-" + name; });
   document.querySelectorAll("[data-view]").forEach(function(n){ n.classList.toggle("active",n.dataset.view === name); });
   if(embedded) window.parent.postMessage({type:"gems-view-changed",view:name},location.origin);
   if (name === "history") loadHistory();
   if (name === "review" && state) runReview().catch(function(e){message(e.message);});
+  if (name === "forecast" && window.resizeForecast) window.resizeForecast();
 }
 function markStale() {
   inputRevision++;
@@ -84,6 +86,7 @@ function buildCriteria() {
   }
 }
 function renderInput(data) {
+  if(window.invalidateForecast && state && (data.symbol!==state.symbol || data.market!==state.market || data.as_of!==state.as_of || data.demo!==state.demo)) window.invalidateForecast("분석 대상이나 기준일이 바뀌었습니다. 전망을 다시 계산하세요.");
   inputRevision++;
   state = data; calculated = null; stale = true;
   $("symbol").value=data.symbol; $("market").value=data.market; $("profile").value=data.profile || "general"; $("as-of").value=data.as_of;
@@ -169,7 +172,7 @@ async function init(){
     catalog=await api("/api/rubric");$("version").textContent=catalog.version;buildCriteria();
     renderInput({symbol:"005930",market:"KR",name:"새 분석",profile:"general",as_of:today(),observations:{},notes:[],demo:false});
     document.querySelectorAll("[data-view]").forEach(function(n){n.onclick=function(){showView(n.dataset.view);};});
-    document.querySelectorAll("input,textarea,select").forEach(function(n){n.addEventListener("input",markStale);});
+    document.querySelectorAll("input,textarea,select").forEach(function(n){if(!n.closest("#view-forecast"))n.addEventListener("input",markStale);});
     $("demo").onclick=async function(){try{message("");renderInput(await api("/api/demo"));showView("evaluate");await calculate();}catch(e){message(e.message);}};
     $("reset").onclick=function(){message("");renderInput({symbol:$("symbol").value.trim() || "005930",market:$("market").value,name:"새 분석",profile:$("profile").value,as_of:today(),observations:{},notes:[],demo:false});showView("evaluate");};
     $("load").onclick=async function(){var revision=inputRevision,b=$("load");b.disabled=true;b.textContent="공개 데이터 확인 중…";message("첫 조회는 파일 다운로드에 시간이 걸릴 수 있습니다.");try{var data=await api("/api/company",{symbol:$("symbol").value.trim(),market:$("market").value,offline:$("offline").checked});if(revision!==inputRevision){message("조회 중 입력이 바뀌어 받은 자료를 적용하지 않았습니다. 현재 입력을 보존했습니다.");return;}renderInput(data);message("");await calculate();}catch(e){message(e.message);}finally{b.disabled=false;b.textContent="DartLab 불러오기";}};
@@ -180,7 +183,7 @@ async function init(){
     $("export-md").onclick=async function(){try{var data=await calculate();download(data.symbol+"-research.md",calculated.report,"text/markdown;charset=utf-8");}catch(e){message(e.message);}};
     $("export-json").onclick=async function(){try{var data=await calculate();download(data.symbol+"-evidence.json",JSON.stringify(data,null,2),"application/json");}catch(e){message(e.message);}};
     $("copy-gems").onclick=async function(){try{await calculate();await navigator.clipboard.writeText(calculated.gems_prompt);message("Gems 검토 요청을 복사했습니다. 기준서와 함께 사용하세요.");}catch(e){message(e.message);}};
-    $("import-json").onchange=async function(event){var file=event.target.files[0];if(!file)return;try{var data=JSON.parse(await file.text()),response=await api("/api/analyze",data);renderInput(response.input);showView("evaluate");await calculate();message("입력 파일을 불러왔습니다.");}catch(e){message("파일을 확인하세요: "+e.message);}event.target.value="";};
+    $("import-json").onchange=async function(event){var file=event.target.files[0];if(!file)return;try{var data=JSON.parse(await file.text());if(data.version && String(data.version).startsWith("price-forecast-"))throw new Error("차트 전망 JSON은 매력도 평가의 근거 JSON과 다른 파일입니다.");var response=await api("/api/analyze",data);renderInput(response.input);showView("evaluate");await calculate();message("입력 파일을 불러왔습니다.");}catch(e){message("파일을 확인하세요: "+e.message);}event.target.value="";};
   }catch(e){message("화면 초기화 실패: "+e.message);}
 }
 function renderReview(review){
@@ -207,11 +210,11 @@ window.addEventListener("message",async function(event){
     renderInput({symbol:next,market:/^\d{6}$/.test(next)?"KR":"US",name:"새 분석",profile:"general",as_of:today(),observations:{},notes:[],demo:false});
     $("load").click();
   }
-  if(payload.type==="gems-view" && ["evaluate","review","report","history"].includes(payload.view)) showView(payload.view);
+  if(payload.type==="gems-view" && ["evaluate","review","report","history","forecast"].includes(payload.view)) showView(payload.view);
 });
 init().then(function(){
   if(!state) return;
   var query=new URLSearchParams(location.search),code=query.get("symbol");
   if(code && /^[A-Za-z0-9.^_-]{1,20}$/.test(code)) renderInput({symbol:code,market:/^\d{6}$/.test(code)?"KR":"US",name:"새 분석",profile:"general",as_of:today(),observations:{},notes:[],demo:false});
-  if(embedded) { window.parent.postMessage({type:"gems-ready"},location.origin); if(code) $("load").click(); }
+  if(embedded) { window.parent.postMessage({type:"gems-ready"},location.origin); if(code && query.get("view")!=="forecast") $("load").click(); }
 });

@@ -186,6 +186,17 @@ def load_company(symbol: str, market: str = "KR", offline: bool = False) -> Anal
                              current_price=current, price_date=priced, notes=notes)
 
 
+def load_prices(symbol: str, market: str, offline: bool):
+    try:
+        from dartlab.core.dataLoader import loadData
+    except ImportError as exc:
+        raise RuntimeError("차트 전망에는 DartLab이 필요합니다. pip install -e '.[data]'로 설치하세요.") from exc
+    with _LOCK:
+        configure_data_dir()
+        return loadData(symbol, "govPriceCompany" if market == "KR" else "edgarPriceCompany",
+                        refresh="local_only" if offline else "auto")
+
+
 def demo_input() -> AnalysisInput:
     """Synthetic company, never a live quote or an actual investment conclusion."""
     today = today_kst()

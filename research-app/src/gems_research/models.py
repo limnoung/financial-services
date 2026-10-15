@@ -88,3 +88,18 @@ class LoadInput(BaseModel):
     symbol: str = Field(pattern=r"^[A-Za-z0-9.^_-]{1,20}$")
     market: Literal["KR", "US"] = "KR"
     offline: bool = False
+
+
+class ForecastInput(LoadInput):
+    horizon: Literal[5, 20, 60] = 20
+    lookback: Literal[63, 126, 252] = 126
+    method: Literal["ar1", "drift"] = "ar1"
+    as_of: date = Field(default_factory=today_kst)
+    demo: bool = False
+
+    @field_validator("as_of")
+    @classmethod
+    def no_future_cutoff(cls, value: date) -> date:
+        if value > today_kst():
+            raise ValueError("예측 기준일은 오늘을 넘을 수 없습니다.")
+        return value
