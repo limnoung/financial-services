@@ -3,14 +3,15 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Gems Research · 투자 매력도 검토</title>
-  <link rel="stylesheet" href="/static/style.css">
-  <script defer src="/static/app.js"></script>
+  <link rel="stylesheet" href="static/style.css">
+  <script defer src="static/app.js"></script>
 </head>
 <body>
   <header class="topbar"><a class="brand" href="/"><span class="brand-mark">G</span>Gems<span>Research</span></a><span class="local"><i></i> 로컬 분석 워크스페이스</span></header>
   <div class="shell">
     <aside class="sidebar">
       <span class="eyebrow">RESEARCH DESK</span>
+      <button class="nav" data-view="review">▦ &nbsp; 재무 검토</button>
       <button class="nav active" data-view="evaluate">◈ &nbsp; 매력도 평가</button>
       <button class="nav" data-view="report">▤ &nbsp; 검토 보고서</button>
       <button class="nav" data-view="history">◷ &nbsp; 저장 기록</button>
@@ -30,7 +31,14 @@
         <div class="load-action"><button id="load" class="button dark">DartLab 불러오기</button><label class="checkbox"><input id="offline" type="checkbox"> 로컬 캐시만 사용</label></div>
         <div id="instrument-meta">API 키 없이 시작할 수 있습니다. 데이터 조회 시 필요한 공개 파일을 캐시합니다.</div>
       </section>
-      <div class="tabs"><button class="tab active" data-view="evaluate">평가 항목 <span>21</span></button><button class="tab" data-view="report">검토 보고서</button><button class="tab" data-view="history">저장 기록</button></div>
+      <div class="tabs"><button class="tab" data-view="review">재무 검토</button><button class="tab active" data-view="evaluate">평가 항목 <span>21</span></button><button class="tab" data-view="report">검토 보고서</button><button class="tab" data-view="history">저장 기록</button></div>
+      <section id="view-review" class="view panel report-view" hidden>
+        <h2>financial-services 재무 검토</h2>
+        <p class="muted">DartLab에서 확인한 자료와 현재 입력을 검토합니다. 아래 점검은 자료의 진위나 Excel 수식을 감사한 결과가 아닙니다.</p>
+        <div class="toolbar"><button id="review-run" class="button dark">현재 입력 점검</button><button id="copy-review" class="button secondary">AI 검토 요청 복사</button></div>
+        <div id="review-checks">종목을 조회하거나 가상 예시를 열면 검토할 수 있습니다.</div>
+        <div id="review-workflows"></div>
+      </section>
       <div id="view-evaluate" class="view">
         <div class="workspace"><div id="criteria"></div>
           <aside class="summary panel">

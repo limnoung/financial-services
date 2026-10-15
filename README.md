@@ -12,7 +12,7 @@ What's in the repo:
 - **[Agents](#agents)** — named, end-to-end workflow agents (Pitch Agent, Market Researcher, GL Reconciler, …). Each ships as a Cowork plugin **and** as a [Claude Managed Agent template](./managed-agent-cookbooks) you deploy via `/v1/agents`.
 - **[Vertical plugins](#vertical-plugins)** — the underlying skills, slash commands, and data connectors, bundled by FSI vertical. Install these on their own if you just want `/comps`, `/dcf`, `/earnings` and the connectors without a full agent.
 
-This fork also includes **[Gems Research](./research-app/README.md)**, a local research application using DartLab data and an evidence-based investment attractiveness rubric. See the **[Gems scoring guide](./research-app/GEMS_SCORING_GUIDE.md)** for the proposed rules, missing-data handling, and Gemini review instructions.
+This fork also includes **[Gems Research](./research-app/README.md)**, a local workspace retaining the DartLab main interface, with financial-services review procedures and an evidence-based investment attractiveness rubric. See the **[Gems scoring guide](./research-app/GEMS_SCORING_GUIDE.md)** for the proposed rules, missing-data handling, and Gemini review instructions.
 
 ## Agents
 

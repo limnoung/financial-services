@@ -1,11 +1,12 @@
 "use strict";
-var catalog, state = null, calculated = null, stale = true;
+var API_BASE = location.pathname.startsWith("/gems/") ? "/gems" : "";
+var catalog, state = null, calculated = null, stale = true, inputRevision = 0;
 var $ = function(id) { return document.getElementById(id); };
 function el(tag, text, cls) { var n = document.createElement(tag); if (text !== undefined) n.textContent = text; if (cls) n.className = cls; return n; }
 function today() { return new Intl.DateTimeFormat("sv-SE",{timeZone:"Asia/Seoul"}).format(new Date()); }
 function message(text) { $("message").textContent = text; $("message").hidden = !text; }
 async function api(url, data) {
-  var response = await fetch(url, data === undefined ? {} : {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
+  var response = await fetch(API_BASE + url, data === undefined ? {} : {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
   var body = await response.json();
   if (!response.ok) { throw new Error(typeof body.detail === "string" ? body.detail : "입력값을 확인하세요: " + JSON.stringify(body.detail)); }
   return body;
@@ -13,9 +14,12 @@ async function api(url, data) {
 function showView(name) {
   document.querySelectorAll(".view").forEach(function(n){ n.hidden = n.id !== "view-" + name; });
   document.querySelectorAll("[data-view]").forEach(function(n){ n.classList.toggle("active",n.dataset.view === name); });
+  if(embedded) window.parent.postMessage({type:"gems-view-changed",view:name},location.origin);
   if (name === "history") loadHistory();
+  if (name === "review" && state) runReview().catch(function(e){message(e.message);});
 }
 function markStale() {
+  inputRevision++;
   stale = true; $("save").disabled = true;
   if (calculated) { $("total").textContent="—"; $("provisional").textContent="—"; $("readiness").textContent = "입력 변경"; $("score-caption").textContent = "입력이 바뀌었습니다. 다시 계산하세요."; }
 }
@@ -80,6 +84,7 @@ function buildCriteria() {
   }
 }
 function renderInput(data) {
+  inputRevision++;
   state = data; calculated = null; stale = true;
   $("symbol").value=data.symbol; $("market").value=data.market; $("profile").value=data.profile || "general"; $("as-of").value=data.as_of;
   $("demo-banner").hidden=!data.demo;
@@ -103,6 +108,7 @@ function renderInput(data) {
   $("total").textContent="—";$("coverage").textContent="0%";$("coverage-bar").style.width="0";$("range").textContent="0 ~ 100";$("provisional").textContent="—";$("readiness").textContent="미평가";
   $("score-caption").textContent="입력 근거를 확인한 뒤 매력도를 계산하세요."; $("save").disabled=true; $("group-scores").replaceChildren();
   $("basis").textContent="자료 성격: 미입력";
+  $("review-checks").textContent="현재 입력으로 재무 검토를 실행하세요."; $("review-workflows").replaceChildren();
   $("report-content").textContent="현재 입력으로 다시 계산하면 보고서를 확인할 수 있습니다.";
 }
 function readInput(){
@@ -145,9 +151,10 @@ function renderResult(response){
     g.items.forEach(function(item){var n=document.querySelector('[data-criterion="'+item.id+'"] .item-status');n.textContent=item.score===null?item.reason:item.score+"점";n.className="item-status"+(item.score!==null?" scored":"");});
   });
   $("report-content").textContent=response.report;
+  if(response.review) renderReview(response.review);
 }
 async function calculate(){
-  try{message("");var data=readInput(),response=await api("/api/analyze",data);state=response.input;renderResult(response);return response.input;}catch(e){message(e.message);throw e;}
+  try{message("");var revision=inputRevision,data=readInput(),response=await api("/api/analyze",data);if(revision!==inputRevision)throw new Error("계산 중 입력이 바뀌었습니다. 다시 계산하세요.");state=response.input;renderResult(response);return response.input;}catch(e){message(e.message);throw e;}
 }
 function download(name,text,type){var u=URL.createObjectURL(new Blob([text],{type:type})),a=el("a");a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(u);},1000);}
 async function loadHistory(){
@@ -165,7 +172,9 @@ async function init(){
     document.querySelectorAll("input,textarea,select").forEach(function(n){n.addEventListener("input",markStale);});
     $("demo").onclick=async function(){try{message("");renderInput(await api("/api/demo"));showView("evaluate");await calculate();}catch(e){message(e.message);}};
     $("reset").onclick=function(){message("");renderInput({symbol:$("symbol").value.trim() || "005930",market:$("market").value,name:"새 분석",profile:$("profile").value,as_of:today(),observations:{},notes:[],demo:false});showView("evaluate");};
-    $("load").onclick=async function(){var b=$("load");b.disabled=true;b.textContent="공개 데이터 확인 중…";message("첫 조회는 파일 다운로드에 시간이 걸릴 수 있습니다.");try{var data=await api("/api/company",{symbol:$("symbol").value.trim(),market:$("market").value,offline:$("offline").checked});renderInput(data);message("");await calculate();}catch(e){message(e.message);}finally{b.disabled=false;b.textContent="DartLab 불러오기";}};
+    $("load").onclick=async function(){var revision=inputRevision,b=$("load");b.disabled=true;b.textContent="공개 데이터 확인 중…";message("첫 조회는 파일 다운로드에 시간이 걸릴 수 있습니다.");try{var data=await api("/api/company",{symbol:$("symbol").value.trim(),market:$("market").value,offline:$("offline").checked});if(revision!==inputRevision){message("조회 중 입력이 바뀌어 받은 자료를 적용하지 않았습니다. 현재 입력을 보존했습니다.");return;}renderInput(data);message("");await calculate();}catch(e){message(e.message);}finally{b.disabled=false;b.textContent="DartLab 불러오기";}};
+    $("review-run").onclick=function(){runReview().catch(function(e){message(e.message);});};
+    $("copy-review").onclick=async function(){try{var review=await runReview();await navigator.clipboard.writeText(review.prompt);message("검토 요청을 복사했습니다. DartLab AI 채팅이나 Gems에 붙여 넣으세요.");}catch(e){message(e.message);}};
     $("calculate").onclick=function(){calculate().catch(function(){});};
     $("save").onclick=async function(){try{var data=await calculate();var result=await api("/api/save",data);message("입력 근거와 "+result.result.rubric_version+" 기준을 함께 로컬에 저장했습니다.");}catch(e){message(e.message);}};
     $("export-md").onclick=async function(){try{var data=await calculate();download(data.symbol+"-research.md",calculated.report,"text/markdown;charset=utf-8");}catch(e){message(e.message);}};
@@ -174,4 +183,35 @@ async function init(){
     $("import-json").onchange=async function(event){var file=event.target.files[0];if(!file)return;try{var data=JSON.parse(await file.text()),response=await api("/api/analyze",data);renderInput(response.input);showView("evaluate");await calculate();message("입력 파일을 불러왔습니다.");}catch(e){message("파일을 확인하세요: "+e.message);}event.target.value="";};
   }catch(e){message("화면 초기화 실패: "+e.message);}
 }
-init();
+function renderReview(review){
+  $("review-checks").replaceChildren(); $("review-workflows").replaceChildren();
+  review.checks.forEach(function(check){var row=el("div",undefined,"review-check");row.append(el("strong",check.label),el("span",check.status==="ready"?"입력 확인":check.status==="warning"?"검토 필요":"자료 보완","pill"),el("p",check.detail));$("review-checks").appendChild(row);});
+  review.workflows.forEach(function(flow){var box=el("section",undefined,"review-flow");box.append(el("h3",flow.title),el("p",flow.description));var list=el("ul");flow.questions.forEach(function(q){list.appendChild(el("li",q));});box.appendChild(list);var link=el("a","financial-services 원문 ↗");link.href=API_BASE+"/api/workflows/"+flow.id;link.target="_blank";link.rel="noopener";box.appendChild(link);$("review-workflows").appendChild(box);});
+}
+async function runReview(){var revision=inputRevision,review=await api("/api/review",readInput());if(revision!==inputRevision)throw new Error("검토 중 입력이 바뀌었습니다. 다시 점검하세요.");renderReview(review);return review;}
+var embedded = new URLSearchParams(location.search).get("embedded")==="1";
+if(embedded) document.documentElement.classList.add("embedded");
+window.addEventListener("message",async function(event){
+  if(!embedded || event.source!==window.parent || event.origin!==location.origin || !state) return;
+  var payload=event.data || {};
+  if(payload.type==="gems-context"){
+    var code=String(payload.symbol || "");
+    if(!/^[A-Za-z0-9.^_-]{1,20}$/.test(code)) return;
+    if(code!==state.symbol){message("DartLab 조회 종목: "+code+". 현재 입력을 보존했습니다. 새 분석을 시작하거나 DartLab 데이터를 불러오세요.");return;}
+  }
+  if(payload.type==="gems-select-company"){
+    var next=String(payload.symbol || "");
+    if(!/^[A-Za-z0-9.^_-]{1,20}$/.test(next)) return;
+    var hasInputs;try{hasInputs=Object.keys(readInput().observations).length;}catch(_){hasInputs=Object.keys(state.observations).length;}
+    if(hasInputs && !confirm("현재 입력을 새 종목으로 바꿉니다. 저장하지 않은 변경은 사라집니다. 계속할까요?")) return;
+    renderInput({symbol:next,market:/^\d{6}$/.test(next)?"KR":"US",name:"새 분석",profile:"general",as_of:today(),observations:{},notes:[],demo:false});
+    $("load").click();
+  }
+  if(payload.type==="gems-view" && ["evaluate","review","report","history"].includes(payload.view)) showView(payload.view);
+});
+init().then(function(){
+  if(!state) return;
+  var query=new URLSearchParams(location.search),code=query.get("symbol");
+  if(code && /^[A-Za-z0-9.^_-]{1,20}$/.test(code)) renderInput({symbol:code,market:/^\d{6}$/.test(code)?"KR":"US",name:"새 분석",profile:"general",as_of:today(),observations:{},notes:[],demo:false});
+  if(embedded) { window.parent.postMessage({type:"gems-ready"},location.origin); if(code) $("load").click(); }
+});

@@ -11,10 +11,11 @@ from .scoring import analyze
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Gems 투자 매력도 분석")
+    parser = argparse.ArgumentParser(description="DartLab + financial-services + Gems 통합 리서치")
     sub = parser.add_subparsers(dest="command", required=True)
-    serve = sub.add_parser("serve", help="로컬 분석 화면")
+    serve = sub.add_parser("serve", help="DartLab 기본 화면과 Gems 통합 실행")
     serve.add_argument("--port", type=int, default=8766)
+    serve.add_argument("--standalone", action="store_true", help="기존 독립 Gems 화면만 실행")
     calc = sub.add_parser("analyze", help="JSON 입력 또는 DartLab 조회")
     calc.add_argument("symbol", nargs="?")
     calc.add_argument("--market", choices=["KR", "US"], default="KR")
@@ -26,7 +27,15 @@ def main():
     if args.command == "serve":
         import uvicorn
         print(f"로컬 화면: http://127.0.0.1:{args.port}")
-        uvicorn.run("gems_research.server:app", host="127.0.0.1", port=args.port)
+        if args.standalone:
+            uvicorn.run("gems_research.server:app", host="127.0.0.1", port=args.port)
+        else:
+            try:
+                from .native import create_app
+                app = create_app()
+            except (ImportError, RuntimeError) as exc:
+                parser.exit(1, f"통합 실행 실패: {exc}\n설치: python -m pip install -e \".[data]\"\n")
+            uvicorn.run(app, host="127.0.0.1", port=args.port)
         return
     if sum([bool(args.demo), bool(args.input), bool(args.symbol)]) != 1:
         parser.error("--demo, --input FILE, 종목코드 중 하나를 선택하세요.")

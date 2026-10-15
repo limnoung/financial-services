@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
@@ -12,6 +12,7 @@ from .data import demo_input, load_company
 from .models import AnalysisInput, LoadInput
 from .reports import gemini_prompt, markdown_report
 from .rubric import catalog
+from .review import financial_review, workflow_text
 from .scoring import analyze
 
 STATIC = Path(__file__).parent / "static"
@@ -46,7 +47,7 @@ def company(request: LoadInput):
 @app.post("/api/analyze")
 def calculate(data: AnalysisInput):
     result = analyze(data)
-    return dict(input=data.model_dump(mode="json"), result=result, report=markdown_report(data, result), gems_prompt=gemini_prompt(data, result))
+    return dict(input=data.model_dump(mode="json"), result=result, review=financial_review(data, result), report=markdown_report(data, result), gems_prompt=gemini_prompt(data, result))
 
 
 @app.post("/api/save")
@@ -67,3 +68,16 @@ def snapshot(key: str):
     if record is None:
         raise HTTPException(404, "저장 기록이 없습니다.")
     return record
+
+
+@app.post("/api/review")
+def review(data: AnalysisInput):
+    return financial_review(data)
+
+
+@app.get("/api/workflows/{key}", response_class=PlainTextResponse)
+def workflow(key: str):
+    try:
+        return workflow_text(key)
+    except KeyError as exc:
+        raise HTTPException(404, "알 수 없는 검토 절차입니다.") from exc

@@ -8,7 +8,7 @@ def _cell(value) -> str:
     return str(value).replace("|", r"\|").replace("\n", " ")
 
 
-def markdown_report(data: AnalysisInput, result: dict) -> str:
+def markdown_report(data: AnalysisInput, result: dict, *, include_review: bool = True) -> str:
     score = f'{result["score"]:.2f}/100' if result["score"] is not None else "미확정"
     provisional = result["provisional_score"]
     lines = [
@@ -61,6 +61,11 @@ def markdown_report(data: AnalysisInput, result: dict) -> str:
         "본 보고서는 해당 스킬의 검토 항목을 참고하며 Claude 에이전트나 외부 LLM이 실행됐음을 의미하지 않습니다.",
         "",
     ]
+    if include_review:
+        from .review import financial_review
+        review = financial_review(data, result)
+        lines += ["## 7 재무 검토", "", "입력 점검 결과이며 원본 모델·Excel 수식 감사가 아닙니다.", ""]
+        lines += [f'- {check["label"]}: {check["detail"]}' for check in review["checks"]]
     return "\n".join(lines)
 
 

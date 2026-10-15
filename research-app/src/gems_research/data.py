@@ -145,6 +145,17 @@ def _price_observations(raw) -> tuple[dict, float | None, date | None, list]:
     return observations, current, priced, notes
 
 
+def configure_data_dir() -> Path:
+    """Share one public-file cache between the native DartLab server and scoring."""
+    import dartlab
+
+    configured = os.environ.get("GEMS_DARTLAB_DATA_DIR")
+    base = Path(os.environ.get("LOCALAPPDATA") or os.environ.get("XDG_CACHE_HOME") or str(Path.home() / ".cache"))
+    path = Path(configured).expanduser().resolve() if configured else base / "gems-research" / "dartlab"
+    dartlab.dataDir = str(path)
+    return path
+
+
 def load_company(symbol: str, market: str = "KR", offline: bool = False) -> AnalysisInput:
     try:
         import dartlab
@@ -152,12 +163,7 @@ def load_company(symbol: str, market: str = "KR", offline: bool = False) -> Anal
     except ImportError as exc:
         raise RuntimeError("DartLab이 없습니다. pip install -e '.[data]'로 설치하세요.") from exc
     with _LOCK:
-        cache = os.environ.get("GEMS_DARTLAB_DATA_DIR")
-        if cache:
-            dartlab.dataDir = str(Path(cache).expanduser().resolve())
-        else:
-            # Keep cached financial data outside the source checkout.
-            dartlab.dataDir = str(Path(os.environ.get("LOCALAPPDATA") or os.environ.get("XDG_CACHE_HOME") or str(Path.home() / ".cache")) / "gems-research" / "dartlab")
+        configure_data_dir()
         refresh = "local_only" if offline else "auto"
         category = "finance" if market == "KR" else "edgarFinanceStmt"
         raw = loadData(symbol, category, refresh=refresh)

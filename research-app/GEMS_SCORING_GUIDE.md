@@ -150,3 +150,10 @@ DartLab 기본 데이터는 공개 파일의 최신 수정치를 소비합니다
 프로그램의 rubric.py와 scoring.py가 실행 규칙입니다. 가중치·기간·경계·업종 프로필·결측 처리·가격 조정 방식이 바뀌면 기준 버전을 올리고 문서와 테스트를 함께 갱신합니다. 분석 기록은 입력 근거와 당시 버전을 함께 저장합니다.
 
 financial-services의 dcf-model, audit-xls, comps-analysis, earnings-preview 스킬은 가치평가 가정·산식 검산·경쟁사 비교·반대 근거 검토에 참고합니다. 데이터 정규화는 DartLab을 사용합니다. 별도 예측 모델의 학습은 필요하지 않습니다.
+
+
+## 통합 프로그램에서의 사용
+
+`start.cmd`, `sh start.sh` 또는 `gems-research serve`로 DartLab 기본 화면을 엽니다. 우측 하단 Gems · 재무 검토에서 동일 종목의 매력도 평가·재무 검토·보고서를 사용합니다. financial-services 원문은 재무 검토 화면에서 열 수 있습니다.
+
+재무 검토의 입력 확인은 자료의 존재·날짜·기간 등을 점검한 결과입니다. 숫자의 진위·원본 Excel 수식·DCF 모델의 검증을 완료했다는 의미가 아닙니다. AI 검토 요청은 사용자가 복사해 DartLab 채팅이나 Gemini Gems에 전달합니다. 이 동작만으로 원본 Claude 에이전트를 실행하지는 않습니다.
