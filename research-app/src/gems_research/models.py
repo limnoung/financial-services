@@ -71,12 +71,13 @@ class AnalysisInput(BaseModel):
     price_date: date | None = None
     target_basis: str = Field(default="", max_length=3000)
     notes: list[str] = Field(default_factory=list, max_length=30)
+    collection_notes: dict[str, str] = Field(default_factory=dict, max_length=40)
     demo: bool = False
 
     @model_validator(mode="after")
     def known_observations(self):
         from .rubric import BY_ID
-        unknown = set(self.observations) - BY_ID.keys()
+        unknown = (set(self.observations) | set(self.collection_notes)) - BY_ID.keys()
         if unknown:
             raise ValueError("정의되지 않은 항목: " + ", ".join(sorted(unknown)))
         if self.price_date and self.price_date > self.as_of:

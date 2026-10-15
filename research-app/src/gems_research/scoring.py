@@ -6,6 +6,7 @@ from collections import Counter
 
 from .models import AnalysisInput, Observation
 from .rubric import CRITERIA, GROUPS, VERSION
+from .collection import AUTOMATIC, missing_reason
 
 
 def numeric_score(item: dict, obs: Observation) -> int:
@@ -71,7 +72,8 @@ def numeric_score(item: dict, obs: Observation) -> int:
 
 
 def assess(item: dict, obs: Observation | None, data: AnalysisInput) -> dict:
-    result = dict(id=item["id"], label=item["label"], score=None, status="missing", reason="자료 미입력")
+    result = dict(id=item["id"], label=item["label"], score=None, status="missing",
+                  reason=data.collection_notes.get(item["id"]) or missing_reason(item["id"], data.market))
     if obs is None:
         return result
     result.update(evidence=obs.evidence, sources=[s.model_dump(mode="json") for s in obs.sources], value=obs.value)
@@ -137,6 +139,9 @@ def analyze(data: AnalysisInput) -> dict:
         band=band or "자료 보완 필요", scored_count=sum(i["score"] is not None for i in all_items),
         evidence_basis={key: round(value, 2) for key, value in basis.items()},
         total_count=len(CRITERIA), groups=groups, upside=upside,
+        collection_summary={"supported_count": len(AUTOMATIC[data.market]),
+                            "supported_scored_count": sum(i["score"] is not None and i["id"] in AUTOMATIC[data.market] for i in all_items),
+                            "research_count": len(CRITERIA) - len(AUTOMATIC[data.market])},
         warnings=[
             "매력도 점수는 상승 확률·투자의견·목표주가가 아닙니다.",
             "가중치와 기준 구간은 제안된 연구 규칙이며 예측 성능이 검증된 기준이 아닙니다.",

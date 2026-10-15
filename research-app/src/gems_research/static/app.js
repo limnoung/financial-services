@@ -23,7 +23,7 @@ function showView(name) {
 function markStale() {
   inputRevision++;
   stale = true; $("save").disabled = true;
-  if (calculated) { $("total").textContent="—"; $("provisional").textContent="—"; $("readiness").textContent = "입력 변경"; $("score-caption").textContent = "입력이 바뀌었습니다. 다시 계산하세요."; }
+  if (calculated) { $("total").textContent="—"; $("provisional").textContent="—"; $("coverage").textContent="—";$("coverage-bar").style.width="0";$("range").textContent="—";$("readiness").textContent = "입력 변경"; $("score-caption").textContent = "입력이 바뀌었습니다. 다시 계산하세요."; $("collection-summary").textContent="입력이 바뀌었습니다. 다시 계산하면 자료 상태를 갱신합니다.";$("coverage-missing").replaceChildren();$("collection-scope").textContent=""; }
 }
 function field(parent, label, tag, className) {
   var wrap = el("label",label,className), input = el(tag || "input");
@@ -111,6 +111,8 @@ function renderInput(data) {
   $("total").textContent="—";$("coverage").textContent="0%";$("coverage-bar").style.width="0";$("range").textContent="0 ~ 100";$("provisional").textContent="—";$("readiness").textContent="미평가";
   $("score-caption").textContent="입력 근거를 확인한 뒤 매력도를 계산하세요."; $("save").disabled=true; $("group-scores").replaceChildren();
   $("basis").textContent="자료 성격: 미입력";
+  $("collection-summary").textContent="21개 평가 항목의 가중치 기준이며, API 연결 성공률이 아닙니다.";
+  $("coverage-missing").replaceChildren();$("collection-scope").textContent="";$("coverage-details").open=false;
   $("review-checks").textContent="현재 입력으로 재무 검토를 실행하세요."; $("review-workflows").replaceChildren();
   $("report-content").textContent="현재 입력으로 다시 계산하면 보고서를 확인할 수 있습니다.";
 }
@@ -144,6 +146,10 @@ function renderResult(response){
   $("total").textContent=r.score===null?"—":r.score.toFixed(1);$("readiness").textContent=r.status==="complete"?"평가 완료":"잠정 평가";
   $("score-caption").textContent=r.band+" · "+r.scored_count+"/"+r.total_count+"개 항목";
   $("coverage").textContent=r.coverage.toFixed(1)+"%";$("coverage-bar").style.width=r.coverage+"%";
+  var collection=r.collection_summary;
+  $("collection-summary").textContent="채점 완료 "+r.scored_count+"/"+r.total_count+"개 · 가중치 기준. API 연결 성공률이 아닙니다.";
+  $("collection-scope").textContent="기본 연결 지원 "+collection.supported_count+"개 중 "+collection.supported_scored_count+"개 채점 가능 · 나머지 "+collection.research_count+"개는 별도 근거 조사·검토가 필요합니다.";
+  $("coverage-missing").replaceChildren();
   $("range").textContent=r.score_range[0].toFixed(1)+" ~ "+r.score_range[1].toFixed(1);
   $("provisional").textContent=r.provisional_score===null?"—":r.provisional_score.toFixed(1);$("save").disabled=false;
   var b=r.evidence_basis;$("basis").textContent="자료 성격별 가중치 · 사실 "+b.fact+"% / 추정 "+b.estimate+"% / 가정 "+b.assumption+"%";
@@ -152,6 +158,11 @@ function renderResult(response){
     var row=el("div",undefined,"mini-group");row.append(el("span",g.label),el("span",g.average===null?"미평가":g.average+" / 5"));
     var track=el("i"),fill=el("b");fill.style.width=(g.average===null?0:(g.average-1)/4*100)+"%";track.appendChild(fill);row.appendChild(track);$("group-scores").appendChild(row);
     g.items.forEach(function(item){var n=document.querySelector('[data-criterion="'+item.id+'"] .item-status');n.textContent=item.score===null?item.reason:item.score+"점";n.className="item-status"+(item.score!==null?" scored":"");});
+    g.items.filter(function(item){return item.score===null;}).forEach(function(item){
+      var entry=el("div",undefined,"coverage-missing-item"),link=el("button",item.label);link.type="button";
+      link.onclick=function(){var card=document.querySelector('[data-criterion="'+item.id+'"]');card.querySelector('.evidence-fields').hidden=false;card.querySelector('.evidence-toggle').textContent="− 근거와 출처 접기";card.scrollIntoView({behavior:"smooth",block:"center"});card.querySelector('.metric-value').focus({preventScroll:true});};
+      entry.append(link,el("p",item.reason));$("coverage-missing").append(entry);
+    });
   });
   $("report-content").textContent=response.report;
   if(response.review) renderReview(response.review);

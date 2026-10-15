@@ -31,7 +31,8 @@ def test_native_ui_assets_and_api_namespaces_keep_upstream_contracts(tmp_path, m
         assert client.get("/_gems-extension/codex.js").status_code == 200
         status = client.get("/_gems-extension/status")
         assert status.json()["launch_id"] == "test-launch"
-        assert status.json()["version"] == "0.3.1"
+        from gems_research import __version__
+        assert status.json()["version"] == __version__
         assert status.headers["cache-control"] == "no-store"
         assert 'href="static/style.css"' in client.get("/gems/").text
         assert client.get("/gems/static/app.js").status_code == 200

@@ -91,45 +91,73 @@ def _financial_observations(raw, symbol: str) -> tuple[dict, str, list]:
     return result, name, notes
 
 
-def _price_observations(raw) -> tuple[dict, float | None, date | None, list]:
-    """Only score the KR price series when the split adjustment inputs are available."""
+def _price_observations(raw, market: str = "KR", symbol: str | None = None,
+                        diagnostics: dict | None = None) -> tuple[dict, float | None, date | None, list]:
+    """Keep incomplete windows explicit rather than silently dropping momentum."""
     import polars as pl
+
+    diagnostics = diagnostics if diagnostics is not None else {}
+    diagnostics.update(high_distance="가격 자료를 확인하지 못했습니다.", trend="가격 자료를 확인하지 못했습니다.")
+
+    def unavailable(reason, current=None, priced=None, notes=None):
+        diagnostics.update(high_distance=reason, trend=reason)
+        return {}, current, priced, [*(notes or []), reason]
 
     cols = raw.columns
     date_col = "BAS_DD" if "BAS_DD" in cols else "date"
     close_col = "TDD_CLSPRC" if "TDD_CLSPRC" in cols else "close"
     if date_col not in cols or close_col not in cols:
-        return {}, None, None, ["가격 파일 스키마 미지원. 가격·모멘텀은 수동 확인하세요."]
+        return unavailable("가격 파일 스키마 미지원. 가격·모멘텀은 수동 확인하세요.")
     frame = raw.sort(date_col)
     if frame[date_col].n_unique() != frame.height:
-        return {}, None, None, ["날짜가 중복된 가격 파일이어서 자동 평가를 보류합니다."]
+        return unavailable("날짜가 중복된 가격 파일이어서 자동 평가를 보류합니다.")
     if frame.is_empty():
-        return {}, None, None, ["가격 파일이 비어 있습니다."]
+        return unavailable("가격 파일이 비어 있습니다.")
     last_date = str(frame[date_col][-1]).replace("-", "")[:8]
-    priced = datetime.strptime(last_date, "%Y%m%d").date()
-    current = float(frame[close_col][-1])
+    try:
+        priced = datetime.strptime(last_date, "%Y%m%d").date()
+        current = float(frame[close_col][-1])
+    except (ValueError, TypeError):
+        return unavailable("최근 가격의 날짜·종가를 확인할 수 없습니다.")
     if not math.isfinite(current) or current <= 0:
-        return {}, None, None, ["유효한 최근 종가가 없습니다."]
+        return unavailable("유효한 최근 종가가 없습니다.")
     observations = {}
     notes = ["현재가는 실시간 가격이 아닌 " + priced.isoformat() + " 데이터 파일의 최근 종가입니다."]
-    if {"BAS_DD", "ISU_CD", "TDD_CLSPRC", "FLUC_RT"}.issubset(cols):
-        from dartlab.gather.transforms.adjustPrice import applyAdjustment, detectEventsFromPrices
-        frame = applyAdjustment(frame, detectEventsFromPrices(frame), mode="split")
+    kr_adjustable = {"BAS_DD", "ISU_CD", "TDD_CLSPRC", "FLUC_RT"}.issubset(cols)
+    if kr_adjustable or market == "US" and {"date", "close"}.issubset(cols):
+        if kr_adjustable:
+            codes = {str(v).removeprefix("A") for v in frame["ISU_CD"].to_list()}
+            if len(codes) != 1 or symbol and codes != {symbol}:
+                return unavailable("가격 파일의 종목코드가 요청 종목과 일치하지 않습니다.", notes=notes)
+            if any(v is None or not math.isfinite(float(v)) for v in frame["FLUC_RT"].to_list()[1:]):
+                return unavailable("분할 감지용 등락률이 부족해 모멘텀을 평가하지 않습니다.", current, priced, notes)
+            frame = frame.with_columns(pl.col(close_col).cast(pl.Float64), pl.col("FLUC_RT").cast(pl.Float64))
+        if kr_adjustable:
+            from dartlab.gather.transforms.adjustPrice import applyAdjustment, detectEventsFromPrices
+            frame = applyAdjustment(frame, detectEventsFromPrices(frame), mode="split")
         raw_closes = frame[close_col].to_list()
         if any(v is None for v in raw_closes):
-            return {}, current, priced, notes + ["결측 종가가 있어 모멘텀 자동 평가를 보류합니다."]
+            return unavailable("결측 종가가 있어 모멘텀 자동 평가를 보류합니다.", current, priced, notes)
         closes = [float(v) for v in raw_closes]
         if not all(math.isfinite(v) and v > 0 for v in closes):
-            return {}, current, priced, notes + ["비정상 종가가 있어 모멘텀 자동 평가를 보류합니다."]
-        source = Source(title="DartLab 가격 · 분할 추론 조정 · 배당 미포함", as_of=priced,
+            return unavailable("비정상 종가가 있어 모멘텀 자동 평가를 보류합니다.", current, priced, notes)
+        source = Source(title="DartLab 가격 · 분할 추론 조정 · 배당 미포함" if kr_adjustable else "DartLab 미국 가격 · 제공자 수정종가", as_of=priced,
                         url="https://huggingface.co/datasets/eddmpython/dartlab-data", kind="estimate")
-        evidence = "DartLab 분할 감지 기반 종가. 추론 조정이며 배당 재투자를 반영하지 않음."
+        evidence = "DartLab 분할 감지 기반 종가. 추론 조정이며 배당 재투자를 반영하지 않음." if kr_adjustable else "DartLab 미국 가격 artifact의 제공자 수정종가(close)."
         # Require an actual year of observations, not merely the first partial year available.
         dates = [datetime.strptime(str(v).replace("-", "")[:8], "%Y%m%d").date() for v in frame[date_col].to_list()]
+        year_dates = [d for d in dates if (priced - d).days <= 365]
+        year_gap = any((b - a).days > 14 for a, b in zip(year_dates, year_dates[1:]))
+        trend_dates = dates[-220:]
+        trend_gap = any((b - a).days > 14 for a, b in zip(trend_dates, trend_dates[1:]))
         year_closes = [v for d, v in zip(dates, frame[close_col].to_list()) if (priced - d).days <= 365 and v is not None]
-        if dates and (priced - dates[0]).days >= 364 and len(year_closes) >= 200:
+        diagnostics["high_distance"] = f"52주 평가에는 364일 이상·최근 1년 종가 200개 이상이 필요합니다. 확보: {dates[0]}~{priced}, 최근 1년 {len(year_closes)}개."
+        diagnostics["trend"] = f"50·200일선과 최근 교차 확인에 종가 220개가 필요합니다. 확보: {len(closes)}개."
+        if dates and (priced - dates[0]).days >= 364 and len(year_closes) >= 200 and (priced - year_dates[0]).days >= 350 and not year_gap:
             observations["high_distance"] = Observation(value=max(0, (1 - closes[-1] / max(year_closes)) * 100), sources=[source], evidence=evidence)
-        if len(closes) >= 220:
+        elif year_gap or (priced - year_dates[0]).days < 350 and (priced - dates[0]).days >= 364:
+            diagnostics["high_distance"] += " 52주 범위 시작 부근의 관측 누락·14일 초과 공백을 확인하세요."
+        if len(closes) >= 220 and not trend_gap:
             moving = [(sum(closes[i-49:i+1]) / 50, sum(closes[i-199:i+1]) / 200) for i in range(len(closes)-21, len(closes))]
             crossing = None
             for (old50, old200), (new50, new200) in zip(moving, moving[1:]):
@@ -140,8 +168,15 @@ def _price_observations(raw) -> tuple[dict, float | None, date | None, list]:
             m50, m200 = moving[-1]
             trend = crossing or ("strong_up" if closes[-1] > m50 > m200 else "strong_down" if closes[-1] < m50 < m200 else "mixed")
             observations["trend"] = Observation(value=trend, sources=[source], evidence=evidence + " 최근 20거래일 교차 우선.")
+        elif trend_gap:
+            diagnostics["trend"] += " 최근 계산 구간에 14일을 넘는 공백이 있습니다."
     else:
         notes.append("수정주가·분할 처리 근거가 부족해 모멘텀을 자동 채점하지 않았습니다.")
+        diagnostics.update(high_distance=notes[-1], trend=notes[-1])
+    for key in observations:
+        diagnostics.pop(key, None)
+    if (today_kst() - priced).days > 14:
+        notes.append(f"가격 파일의 최근 기준일은 {priced}입니다. 최신 시세 반영 여부를 확인하세요.")
     return observations, current, priced, notes
 
 
@@ -168,6 +203,10 @@ def load_company(symbol: str, market: str = "KR", offline: bool = False) -> Anal
         category = "finance" if market == "KR" else "edgarFinanceStmt"
         raw = loadData(symbol, category, refresh=refresh)
         observations, name, notes = _financial_observations(raw, symbol)
+        collection_notes = {key: "연속된 완결 4개 연도의 비교 가능한 수치가 부족하거나 시작·종료 이익이 양수가 아닙니다."
+                            for key in ("revenue_cagr", "profit_cagr") if key not in observations}
+        if "debt_ratio" not in observations:
+            collection_notes["debt_ratio"] = "동일 최신 분기의 부채총계·자본총계가 필요합니다."
         if market == "US":
             for obs in observations.values():
                 obs.sources = [Source(title="DartLab SEC 표준화 재무 파일 · 취득일 기준",
@@ -176,14 +215,32 @@ def load_company(symbol: str, market: str = "KR", offline: bool = False) -> Anal
         current = priced = None
         price_category = "govPriceCompany" if market == "KR" else "edgarPriceCompany"
         try:
-            prices = loadData(symbol, price_category, refresh=refresh)
-            extra, current, priced, price_notes = _price_observations(prices)
+            if market == "KR":
+                from .price_history import load_kr_prices
+                prices, history_notes = load_kr_prices(loadData, symbol, refresh)
+                notes.extend(history_notes)
+            else:
+                prices = loadData(symbol, price_category, refresh=refresh)
+            extra, current, priced, price_notes = _price_observations(prices, market, symbol, collection_notes)
             observations.update(extra)
             notes.extend(price_notes)
         except (OSError, RuntimeError, ValueError, KeyError) as exc:
             notes.append("가격 미조회: " + str(exc)[:180] + ". 재무 분석은 계속 사용할 수 있습니다.")
+            collection_notes.update(high_distance=notes[-1], trend=notes[-1])
+        if market == "KR":
+            try:
+                from .kr_reports import dividend_observation
+                report = loadData(symbol, "report", refresh=refresh)
+                dividend, reason = dividend_observation(report, symbol, today_kst())
+                if dividend:
+                    observations["dividend"] = dividend
+                else:
+                    collection_notes["dividend"] = reason
+            except (OSError, RuntimeError, ValueError, KeyError) as exc:
+                collection_notes["dividend"] = "연간 보통주 배당 공시 조회 실패: " + str(exc)[:180]
+            notes.append("한국장 기본 자동 연결은 재무 3개·배당·가격 2개 항목입니다. 해자·컨센서스·기관 보유율·촉매 등은 별도 근거 검토가 필요합니다.")
         return AnalysisInput(symbol=symbol, market=market, name=name, observations=observations,
-                             current_price=current, price_date=priced, notes=notes)
+                             current_price=current, price_date=priced, notes=notes, collection_notes=collection_notes)
 
 
 def load_prices(symbol: str, market: str, offline: bool):
@@ -193,6 +250,9 @@ def load_prices(symbol: str, market: str, offline: bool):
         raise RuntimeError("차트 전망에는 DartLab이 필요합니다. pip install -e '.[data]'로 설치하세요.") from exc
     with _LOCK:
         configure_data_dir()
+        if market == "KR":
+            from .price_history import load_kr_prices
+            return load_kr_prices(loadData, symbol, "local_only" if offline else "auto")[0]
         return loadData(symbol, "govPriceCompany" if market == "KR" else "edgarPriceCompany",
                         refresh="local_only" if offline else "auto")
 

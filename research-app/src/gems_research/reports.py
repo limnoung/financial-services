@@ -23,6 +23,7 @@ def markdown_report(data: AnalysisInput, result: dict, *, include_review: bool =
         f'- 기준 버전: {result["rubric_version"]}',
         f'- 매력도: {score} / {result["band"]}',
         f'- 자료 충족률: {result["coverage"]:.2f}% ({result["scored_count"]}/{result["total_count"]}항목)',
+        f'- 수집 범위: 기본 연결 지원 {result["collection_summary"]["supported_count"]}개 중 {result["collection_summary"]["supported_scored_count"]}개 채점 가능, 별도 조사·검토 {result["collection_summary"]["research_count"]}개. 충족률은 API 연결 성공률이 아님.',
         f'- 입력 자료 성격별 가중치: 사실 {result["evidence_basis"]["fact"]}% / 추정 {result["evidence_basis"]["estimate"]}% / 가정 {result["evidence_basis"]["assumption"]}%',
         f'- 미평가를 포함한 가능한 범위: {result["score_range"][0]:.2f}~{result["score_range"][1]:.2f}',
         f"- 확보된 항목만 환산한 잠정 점수: {provisional if provisional is not None else '없음'}",
