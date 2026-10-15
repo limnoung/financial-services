@@ -1,10 +1,14 @@
 import hashlib
 import importlib.util
+import json
 import os
 from pathlib import Path
 import shutil
 import subprocess
 import sys
+import socket
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from types import SimpleNamespace
 
 import pytest
@@ -25,6 +29,7 @@ def test_launcher_installs_once_and_passes_port_without_shell(tmp_path, monkeypa
     (project / "pyproject.toml").write_text("[project]\nname='test'\n")
     monkeypatch.setattr(module, "__file__", str(project / "start.py"))
     monkeypatch.setattr(module.sys, "argv", ["start.py", "--no-browser", "--port", "9000"])
+    monkeypatch.setattr(module, "available_port", lambda preferred: preferred)
     calls = []
 
     def create(path, **kwargs):
@@ -44,6 +49,45 @@ def test_launcher_installs_once_and_passes_port_without_shell(tmp_path, monkeypa
     assert module.main() == 0
     assert not any("install" in args for args in calls)
     assert (project / ".venv/.gems-bootstrap.sha256").read_text() == hashlib.sha256((project / "pyproject.toml").read_bytes()).hexdigest()
+
+
+def test_busy_port_keeps_existing_server_and_chooses_another():
+    module = launcher()
+    with socket.socket() as old_server:
+        old_server.bind(("127.0.0.1", 0))
+        old_server.listen()
+        preferred = old_server.getsockname()[1]
+        if preferred > 65515:
+            pytest.skip("Ephemeral port too near the upper limit")
+        selected = module.available_port(preferred)
+        assert preferred < selected <= preferred + 20
+        assert old_server.getsockname()[1] == preferred
+
+
+def test_readiness_requires_this_launch_not_an_older_server():
+    module = launcher()
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            body = json.dumps({"launch_id": "new-launch"}).encode()
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *args):
+            pass
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        url = "http://127.0.0.1:" + str(server.server_address[1])
+        assert not module.is_own_server(url, "old-launch")
+        assert module.is_own_server(url, "new-launch")
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
 
 
 def test_launcher_rejects_unsupported_python_before_install(monkeypatch):

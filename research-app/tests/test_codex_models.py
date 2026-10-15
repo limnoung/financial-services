@@ -3,7 +3,12 @@ from pathlib import Path
 
 import pytest
 
-from gems_research.codex_models import AccountModelChannel, install_codex_model_bridge
+from gems_research.codex_models import AccountModelChannel, install_codex_model_bridge, save_model
+
+
+@pytest.fixture(autouse=True)
+def isolated_settings(tmp_path, monkeypatch):
+    monkeypatch.setenv("GEMS_STATE_DIR", str(tmp_path / "gems"))
 
 
 DEFAULT = dict(model="account-default", isDefault=True, defaultReasoningEffort="medium",
@@ -74,6 +79,34 @@ def test_supported_configured_model_is_kept_instead_of_default():
     preferred = dict(model="gpt-6.1-sol", isDefault=False)
     channel, raw = opened_channel(models=[DEFAULT, preferred])
     assert raw.calls[-1][1]["model"] == "gpt-6.1-sol"
+
+
+def test_app_choice_overrides_inherited_model_even_if_catalog_still_advertises_it():
+    save_model("account-default")
+    channel, raw = opened_channel(models=[DEFAULT, dict(model="gpt-6.1-sol")])
+    assert raw.calls[-1][1]["model"] == "account-default"
+    assert raw.config["model"] == "gpt-6.1-sol"
+
+
+def test_existing_thread_adopts_new_choice_on_next_turn():
+    channel, raw = opened_channel(models=[DEFAULT, dict(model="gpt-6.1-sol")])
+    assert raw.calls[-1][1]["model"] == "gpt-6.1-sol"
+    save_model("account-default")
+    channel.request("turn/start", {"threadId": "native-thread", "effort": "high"})
+    assert raw.calls[-1][1]["model"] == "account-default"
+    assert raw.calls[-1][1]["effort"] == "medium"
+
+
+def test_saved_choice_never_changes_api_key_policy():
+    save_model("account-default")
+    _, raw = opened_channel(account="apiKey")
+    assert "model" not in raw.calls[-1][1]
+
+
+def test_removed_saved_model_does_not_silently_choose_another():
+    save_model("removed")
+    with pytest.raises(RuntimeError, match="지원 모델"):
+        opened_channel()
 
 
 def test_custom_provider_is_preserved_even_with_a_saved_chatgpt_login():

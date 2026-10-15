@@ -10,6 +10,7 @@ def test_native_ui_assets_and_api_namespaces_keep_upstream_contracts(tmp_path, m
     monkeypatch.setenv("DARTLAB_HOME", str(tmp_path / "dartlab"))
     monkeypatch.setenv("GEMS_DARTLAB_DATA_DIR", str(tmp_path / "data"))
     monkeypatch.setenv("GEMS_STATE_DIR", str(tmp_path / "gems"))
+    monkeypatch.setenv("GEMS_LAUNCH_ID", "test-launch")
     from gems_research.native import create_app
     from dartlab.server._ui_path import resolveUiBuildDir
 
@@ -27,6 +28,11 @@ def test_native_ui_assets_and_api_namespaces_keep_upstream_contracts(tmp_path, m
         assert client.get("/terminal/005930").text == root.text
         assert client.get("/analysis/AAPL/viewer").text == root.text
         assert client.get("/_gems-extension/bridge.js").status_code == 200
+        assert client.get("/_gems-extension/codex.js").status_code == 200
+        status = client.get("/_gems-extension/status")
+        assert status.json()["launch_id"] == "test-launch"
+        assert status.json()["version"] == "0.3.1"
+        assert status.headers["cache-control"] == "no-store"
         assert 'href="static/style.css"' in client.get("/gems/").text
         assert client.get("/gems/static/app.js").status_code == 200
         assert client.get("/gems/static/forecast.js").status_code == 200

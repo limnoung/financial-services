@@ -3,8 +3,10 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import os
 from pathlib import Path
+import socket
 import subprocess
 import sys
 import threading
@@ -13,6 +15,31 @@ import urllib.request
 import uuid
 import venv
 import webbrowser
+
+
+def available_port(preferred: int) -> int:
+    """Keep an older server intact and use a different loopback port."""
+    for port in range(preferred, min(preferred + 21, 65536)):
+        with socket.socket() as listener:
+            if os.name == "nt":
+                listener.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+            try:
+                listener.bind(("127.0.0.1", port))
+            except OSError:
+                continue
+            return port
+    raise OSError("사용 가능한 로컬 포트가 없습니다. 기존 실행 창을 종료하세요.")
+
+
+def is_own_server(url: str, launch_id: str) -> bool:
+    try:
+        # Ignore proxy environment settings for the local readiness check.
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        with opener.open(url + "/_gems-extension/status", timeout=1) as response:
+            payload = json.load(response)
+            return response.status == 200 and isinstance(payload, dict) and payload.get("launch_id") == launch_id
+    except (OSError, ValueError, urllib.error.URLError):
+        return False
 
 
 def python_works(python: Path, child_env: dict[str, str]) -> bool:
@@ -32,6 +59,8 @@ def main() -> int:
     parser.add_argument("--port", type=int, default=8766)
     parser.add_argument("--no-browser", action="store_true")
     args = parser.parse_args()
+    if not 1 <= args.port <= 65535:
+        parser.error("포트는 1~65535 범위여야 합니다.")
     if sys.version_info < (3, 12):
         print("Python 3.12 이상을 설치한 뒤 다시 실행하세요.")
         return 1
@@ -57,7 +86,12 @@ def main() -> int:
         print("DartLab과 리서치 기능을 설치합니다. 첫 실행에는 시간이 걸릴 수 있습니다.", flush=True)
         subprocess.run([str(python), "-X", "utf8", "-m", "pip", "install", "-e", str(root) + "[data]"], check=True, env=child_env)
         marker.write_text(digest)
-    url = f"http://127.0.0.1:{args.port}"
+    port = available_port(args.port)
+    if port != args.port:
+        print(f"{args.port} 포트가 사용 중입니다. 이번 실행은 {port} 포트를 사용합니다.", flush=True)
+    launch_id = uuid.uuid4().hex
+    child_env["GEMS_LAUNCH_ID"] = launch_id
+    url = f"http://127.0.0.1:{port}"
     print(f"DartLab 통합 화면: {url}\n종료: Ctrl+C", flush=True)
 
     if not args.no_browser:
@@ -65,16 +99,12 @@ def main() -> int:
             # Poll a lightweight local document, never the data or AI endpoints.
             for _ in range(60):
                 threading.Event().wait(0.5)
-                try:
-                    with urllib.request.urlopen(url + "/_gems-extension/bridge.js", timeout=1) as response:
-                        if response.status == 200:
-                            webbrowser.open(url)
-                            return
-                except (OSError, urllib.error.URLError):
-                    continue
+                if is_own_server(url, launch_id):
+                    webbrowser.open(url)
+                    return
             print(f"브라우저에서 직접 열어 주세요: {url}", flush=True)
         threading.Thread(target=open_when_ready, daemon=True).start()
-    return subprocess.call([str(python), "-X", "utf8", "-m", "gems_research", "serve", "--port", str(args.port)], env=child_env)
+    return subprocess.call([str(python), "-X", "utf8", "-m", "gems_research", "serve", "--port", str(port)], env=child_env)
 
 
 if __name__ == "__main__":

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 from importlib.metadata import version
+import os
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -16,9 +17,10 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from .data import configure_data_dir
 from .server import app as gems_app
+from . import __version__
 
 STATIC = Path(__file__).parent / "native_static"
-INJECTION = '<link rel="stylesheet" href="/_gems-extension/bridge.css"><script defer src="/_gems-extension/bridge.js"></script>'
+INJECTION = f'<link rel="stylesheet" href="/_gems-extension/bridge.css?v={__version__}"><script defer src="/_gems-extension/bridge.js?v={__version__}"></script><script defer src="/_gems-extension/codex.js?v={__version__}"></script>'
 
 
 def create_app() -> FastAPI:
@@ -43,6 +45,16 @@ def create_app() -> FastAPI:
 
     app = FastAPI(title="DartLab Research", lifespan=lifespan, docs_url=None, openapi_url=None)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["localhost", "127.0.0.1", "[::1]", "testserver"])
+    from .codex_api import router as codex_router
+    app.include_router(codex_router)
+
+    @app.get("/_gems-extension/status")
+    def integration_status():
+        from fastapi.responses import JSONResponse
+        return JSONResponse({"app": "gems-research", "version": __version__,
+                             "launch_id": os.environ.get("GEMS_LAUNCH_ID")},
+                            headers={"Cache-Control": "no-store"})
+
     app.mount("/gems", gems_app)
     app.mount("/_gems-extension", StaticFiles(directory=STATIC))
 
